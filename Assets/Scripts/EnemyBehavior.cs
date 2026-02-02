@@ -1,0 +1,1053 @@
+using UnityEngine;
+using System.Collections;
+using ZGame.UnityDraft.Combat;
+using ZGame.UnityDraft.Systems;
+
+namespace ZGame.UnityDraft
+{
+    public enum EnemyBehaviorType
+    {
+        None,
+        RavagerDash,
+        RangedSpitter,
+        SuicideFuse,
+        Buffer,
+        Shielder,
+        Splinter,
+        Bandit,
+        BossStub,
+        BossMistweaver,
+        BossMemoryDevourer,
+        BossTwinMain,
+        BossTwinPartner
+    }
+
+    /// <summary>
+    /// Behavior controller stubs for different enemy types: dash, ranged, suicide, buffer/shielder, splinter, bandit, boss.
+    /// </summary>
+    [RequireComponent(typeof(Enemy))]
+    public class EnemyBehavior : MonoBehaviour
+    {
+        [System.Serializable]
+        public enum BossAttackType { Pause, Teleport, Volley, Spiral, Fog, Hazard, Summon, Clone, AimedBurst, RingHazard, Dash, ConeBurst, RingBurst }
+        [System.Serializable]
+        public class BossAttackStep
+        {
+            public BossAttackType type = BossAttackType.Pause;
+            public float duration = 1f;
+            public int intParam = 0;
+            public float floatParam = 0f;
+            public float floatParam2 = 0f;
+            public float floatParam3 = 0f;
+        }
+
+        public EnemyBehaviorType behavior;
+        public EnemyMover mover;
+        public EnemyShooter shooter;
+        public ShielderAura shielderAura;
+        public EnemyFactory factory;
+        public Transform target;
+        public BulletCombatSystem bulletSystem;
+        public BulletPool bulletPool;
+
+        [Header("Dash (Ravager/Boss)")]
+        public float dashInterval = 3f;
+        public float dashIntervalMax = 4.5f;
+        public float dashDuration = 0.6f;    // BOSS_DASH_GO_TIME
+        public float dashSpeedMult = 4.2f;   // BOSS_DASH_SPEED_MULT
+        [Header("Ravager Phase Tuning")]
+        public float dashIntervalPhase1 = 3.5f;
+        public float dashIntervalPhase2 = 2.8f;
+        public float dashSpeedPhase1 = 3.2f;
+        public float dashSpeedPhase2 = 3.8f;
+        public float dashDurationPhase1 = 0.65f;
+        public float dashDurationPhase2 = 0.75f;
+        public float dashTelegraph = 0.25f;
+        public float dashWinddownSlowMult = 0.6f;
+        public float dashWinddownTime = 0.35f;
+        public float dashStunTime = 0.25f;
+        public float dashCooldownPhase1Mult = 0.85f;
+        public float dashCooldownPhase2Mult = 0.7f;
+        public ObstacleCrushOnContact crush;
+
+        [Header("Suicide")]
+        public float fuseRange = 1.6f;
+        public float fuseTime = 1.0f;
+        public float suicideDamage = 20f;
+        private float _fuseTimer = -1f;
+        public GameObject fuseVfx;
+        public AudioClip fuseSfx;
+        public Color fuseFlashColor = Color.red;
+        public float fuseFlashSpeed = 10f;
+        private SpriteRenderer _sr;
+        private Color _baseColor;
+        public ZGame.UnityDraft.VFX.VfxPlayer vfxPlayer;
+        public ZGame.UnityDraft.VFX.SfxPlayer sfxPlayer;
+
+        [Header("Buffer")]
+        public float buffRadius = 3f;
+        public float buffSpeedMult = 1.15f;
+        public float buffDuration = 3f;
+        public int buffMaxStacks = 3;
+        public GameObject buffVfx;
+
+        [Header("Splinter")]
+        public string splinterTypeId = "splinterling";
+        public int splinterCount = 2;
+        public float splinterSpeedMult = 1.2f;
+        public float splinterAttackMult = 0.7f;
+        public float splinterHpMult = 0.5f;
+        public int splinterSpoils = 0;
+        public EnemyBehaviorType splinterBehavior = EnemyBehaviorType.SuicideFuse;
+
+        [Header("Bandit")]
+        public float stealRadius = 1.2f;
+        public float fleeDuration = 2.0f;
+        public float fleeSpeedMult = 1.4f;
+        public int stealCoins = 3;
+        public int stealEscalation = 2;
+        public int stealMax = 12;
+        public bool stealBanked = false; // steal from meta bank if allowed
+        public MetaProgression meta;
+        [Header("Bandit Radar")]
+        public bool banditRadarTagged = false;
+        public int banditRadarLevel = 0;
+        public float banditRadarSlowLeft = 0f;
+        public float banditRadarRingPeriod = 2f;
+        public GameObject banditRadarRingVfx;
+        private float _banditRadarBaseSpeed = 0f;
+        public float dropChanceOnDeath = 0.5f;
+        public GameObject coinPrefab;
+        public HUDController hud;
+        private bool _fleeing;
+        private float _fleeTimer;
+        private Vector2 _fleeDir;
+        private static readonly float[] _banditRadarSlowMult = { 0.92f, 0.88f, 0.84f, 0.80f };
+        private static readonly float[] _banditRadarSlowDur = { 2.0f, 3.0f, 4.0f, 5.0f };
+        private float _banditRingTimer = 0f;
+
+        [Header("Boss Stub")]
+        public float phaseDuration = 6f;
+        private float _phaseTimer;
+        private bool _phaseDash;
+
+        [Header("Boss Mistweaver")]
+        public float mistTeleportInterval = 5f;
+        public float mistVolleyInterval = 2.5f;
+        public int mistVolleyProjectiles = 8;
+        public float mistTeleportRange = 6f;
+        public float mistFogInterval = 4f;
+        public float mistFogRadius = 2.2f;
+        public float mistFogDuration = 5f;
+        public Color mistFogColor = new Color(0.6f, 0.8f, 1f, 0.35f);
+        public float mistSpiralStepDeg = 18f;
+        public string mistCloneTypeId = "mist_clone";
+        private int _mistPhase = 0;
+        private float _mistTeleportTimer;
+        private float _mistVolleyTimer;
+        private float _mistFogTimer;
+        private float _mistSpiralAngle;
+
+        [Header("Boss Memory Devourer")]
+        public float devourerPulseInterval = 3f;
+        public float devourerPulseRadius = 3f;
+        public int devourerPulseDamage = 12;
+        public float devourerSummonInterval = 7f;
+        public string devourerSummonType = "basic";
+        public float devourerSpiralInterval = 2.2f;
+        public int devourerSpiralProjectiles = 10;
+        public float devourerSpiralStepDeg = 12f;
+        public float devourerHazardInterval = 5f;
+        public float devourerHazardRadius = 2.4f;
+        public float devourerHazardDuration = 6f;
+        public Color devourerHazardColor = new Color(0.8f, 0.2f, 0.2f, 0.35f);
+        private float _devourerPulseTimer;
+        private float _devourerSummonTimer;
+        private float _devourerSpiralTimer;
+        private float _devourerSpiralAngle;
+        private float _devourerHazardTimer;
+
+        [Header("Twin Boss")]
+        public EnemyBehavior twinPartner;
+        public float twinEnrageMult = 1.3f;
+        public float twinVolleyInterval = 3.5f;
+        public int twinVolleyCount = 6;
+        private float _twinVolleyTimer;
+        private bool _enraged;
+
+        [Header("Scripted Sequences")]
+        public bool useScriptedPattern = false;
+        public BossAttackStep[] mistPattern;
+        public BossAttackStep[] devourerPattern;
+        public BossAttackStep[] twinPattern;
+        [Header("Phase Patterns (optional)")]
+        public BossAttackStep[] mistPhase0Pattern;
+        public BossAttackStep[] mistPhase1Pattern;
+        public BossAttackStep[] mistPhase2Pattern;
+        public BossAttackStep[] devourerPhase0Pattern;
+        public BossAttackStep[] devourerPhase1Pattern;
+        public BossAttackStep[] devourerPhase2Pattern;
+        public BossAttackStep[] twinPhase0Pattern;
+        public BossAttackStep[] twinEnragePattern;
+        private Coroutine _patternRoutine;
+        [Header("Default Pattern (Python-inspired)")]
+        public bool useDefaultPattern = true;
+        [Header("Aimed Burst Settings")]
+        public int aimedBurstProjectiles = 5;
+        public float aimedBurstSpreadDeg = 20f;
+        public float aimedBurstSpeed = 520f;
+
+        [Header("Ring Hazard Settings")]
+        public int ringHazardCount = 6;
+        public float ringHazardRadius = 4f;
+        [Header("Dash / Cone / Ring Attacks")]
+        public float dashWindup = 0.4f;      // BOSS_DASH_WINDUP
+        public float dashTime = 0.6f;        // BOSS_DASH_GO_TIME
+        public float coneCount = 7;          // BOSS_VOMIT_COUNT
+        public float coneArcDeg = 55f;       // BOSS_VOMIT_CONE_DEG
+        public float coneSpeed = 380f;       // BOSS_VOMIT_SPEED
+        public int ringBursts = 2;           // BOSS_RING_BURSTS
+        public int ringProjectiles = 20;     // BOSS_RING_PROJECTILES
+        public float ringSpeed = 420f;       // BOSS_RING_SPEED
+        public float ringDelay = 2.0f;       // BOSS_RING_CD / bursts
+
+        private Enemy _enemy;
+        private Rigidbody2D _rb;
+        private float _dashTimer;
+        private int _currentPhase = 0;
+        private bool _dashActive;
+
+        private void Awake()
+        {
+            _enemy = GetComponent<Enemy>();
+            _rb = GetComponent<Rigidbody2D>();
+            if (mover == null) mover = GetComponent<EnemyMover>();
+            if (shooter == null) shooter = GetComponent<EnemyShooter>();
+            if (shielderAura == null) shielderAura = GetComponent<ShielderAura>();
+            if (crush == null) crush = GetComponent<ObstacleCrushOnContact>();
+            if (factory == null) factory = FindObjectOfType<EnemyFactory>();
+            if (bulletSystem == null) bulletSystem = FindObjectOfType<BulletCombatSystem>();
+            if (bulletPool == null) bulletPool = FindObjectOfType<BulletPool>();
+            if (vfxPlayer == null) vfxPlayer = FindObjectOfType<ZGame.UnityDraft.VFX.VfxPlayer>();
+            if (sfxPlayer == null) sfxPlayer = FindObjectOfType<ZGame.UnityDraft.VFX.SfxPlayer>();
+            _sr = GetComponent<SpriteRenderer>();
+            if (_sr != null) _baseColor = _sr.color;
+            if (target == null)
+            {
+                var p = FindObjectOfType<Player>();
+                if (p != null) target = p.transform;
+            }
+            if (_enemy != null) _enemy.OnKilled += HandleKilled;
+            _phaseTimer = phaseDuration;
+            if (meta == null) meta = FindObjectOfType<MetaProgression>();
+            if (hud == null) hud = FindObjectOfType<HUDController>();
+            if (behavior == EnemyBehaviorType.Bandit && meta != null)
+            {
+                int lvl = Mathf.Clamp(meta.banditRadarLevel, 0, _banditRadarSlowMult.Length);
+                if (lvl > 0)
+                {
+                    banditRadarTagged = true;
+                    banditRadarLevel = lvl;
+                    banditRadarRingPeriod = 2f;
+                    banditRadarSlowLeft = _banditRadarSlowDur[lvl - 1];
+                    _banditRadarBaseSpeed = _enemy.speed;
+                    _enemy.speed = _banditRadarBaseSpeed * _banditRadarSlowMult[lvl - 1];
+                    if (hud != null) hud.ShowBanner("BANDIT TAGGED!", 1.2f);
+                }
+            }
+            if (useScriptedPattern && _patternRoutine == null)
+            {
+                if (useDefaultPattern) SeedDefaultPatterns();
+                _patternRoutine = StartCoroutine(RunPattern());
+            }
+        }
+
+        private void Update()
+        {
+            if (useScriptedPattern) return; // pattern coroutine drives actions
+            UpdatePhase();
+            switch (behavior)
+            {
+                case EnemyBehaviorType.RavagerDash:
+                    UpdateDash();
+                    break;
+                case EnemyBehaviorType.RangedSpitter:
+                    if (shooter != null && target != null) shooter.target = target;
+                    break;
+                case EnemyBehaviorType.SuicideFuse:
+                    UpdateFuse();
+                    break;
+                case EnemyBehaviorType.Buffer:
+                    UpdateBuffer();
+                    break;
+                case EnemyBehaviorType.Shielder:
+                    if (shielderAura != null) shielderAura.enabled = true;
+                    break;
+                case EnemyBehaviorType.Splinter:
+                    // passive; handled on kill
+                    break;
+                case EnemyBehaviorType.Bandit:
+                    UpdateBandit();
+                    break;
+                case EnemyBehaviorType.BossStub:
+                    UpdateBossStub();
+                    break;
+                case EnemyBehaviorType.BossMistweaver:
+                    UpdateMistweaver();
+                    break;
+                case EnemyBehaviorType.BossMemoryDevourer:
+                    UpdateMemoryDevourer();
+                    break;
+                case EnemyBehaviorType.BossTwinMain:
+                case EnemyBehaviorType.BossTwinPartner:
+                    UpdateTwinBoss();
+                    break;
+            }
+        }
+
+        private void UpdatePhase()
+        {
+            if (_enemy == null || _enemy.maxHp <= 0) return;
+            float hpFrac = _enemy.hp / (float)_enemy.maxHp;
+            int phase = 0;
+            if (hpFrac <= 0.66f) phase = 1;
+            if (hpFrac <= 0.33f) phase = 2;
+            _currentPhase = phase;
+            if (behavior == EnemyBehaviorType.BossMistweaver)
+            {
+                _mistPhase = phase;
+            }
+            if (behavior == EnemyBehaviorType.BossMemoryDevourer)
+            {
+                _enraged = phase >= 2;
+            }
+            if ((behavior == EnemyBehaviorType.BossTwinMain || behavior == EnemyBehaviorType.BossTwinPartner) && !_enraged && hpFrac <= 0.5f)
+            {
+                _enraged = true;
+                _enemy.speed *= twinEnrageMult;
+                _enemy.attack = Mathf.RoundToInt(_enemy.attack * twinEnrageMult);
+            }
+        }
+
+        private void UpdateDash()
+        {
+            if (_dashActive) return;
+            _dashTimer -= Time.deltaTime;
+            if (_dashTimer <= 0f)
+            {
+                StartCoroutine(DashRoutine());
+            }
+        }
+
+        private System.Collections.IEnumerator DashRoutine()
+        {
+            _dashActive = true;
+            float intervalMin = dashInterval;
+            float intervalMax = dashIntervalMax;
+            float speedMult = dashSpeedMult;
+            float duration = dashDuration;
+            if (_currentPhase == 1)
+            {
+                intervalMin = dashIntervalPhase1 * dashCooldownPhase1Mult;
+                intervalMax = (dashIntervalPhase1 + 1.0f) * dashCooldownPhase1Mult;
+                speedMult = dashSpeedPhase1;
+                duration = dashDurationPhase1;
+            }
+            else if (_currentPhase >= 2)
+            {
+                intervalMin = dashIntervalPhase2 * dashCooldownPhase2Mult;
+                intervalMax = (dashIntervalPhase2 + 1.0f) * dashCooldownPhase2Mult;
+                speedMult = dashSpeedPhase2;
+                duration = dashDurationPhase2;
+            }
+            _dashTimer = Random.Range(intervalMin, intervalMax);
+            Vector2 dir = target != null ? (target.position - transform.position) : Random.insideUnitCircle;
+            if (dir.sqrMagnitude < 0.01f) dir = Random.insideUnitCircle.normalized;
+            dir.Normalize();
+            if (mover != null) mover.enabled = false;
+            if (_rb != null) _rb.velocity = Vector2.zero;
+            // Telegraph pause
+            yield return new WaitForSeconds(dashTelegraph);
+            float original = _enemy.speed;
+            _enemy.speed = original * speedMult;
+            if (crush != null) crush.isCrushing = true;
+            float t = duration;
+            while (t > 0f)
+            {
+                t -= Time.deltaTime;
+                if (target != null)
+                {
+                    dir = ((Vector2)target.position - (Vector2)transform.position);
+                    if (dir.sqrMagnitude > 0.001f) dir.Normalize();
+                }
+                if (_rb != null) _rb.velocity = dir * _enemy.speed;
+                yield return null;
+            }
+            _enemy.speed = original;
+            // wind-down slow then brief stun
+            if (_rb != null) _rb.velocity = Vector2.zero;
+            _enemy.speed = original * dashWinddownSlowMult;
+            yield return new WaitForSeconds(dashWinddownTime);
+            _enemy.speed = 0f;
+            yield return new WaitForSeconds(dashStunTime);
+            _enemy.speed = original;
+            if (_rb != null) _rb.velocity = Vector2.zero;
+            if (mover != null) mover.enabled = true;
+            if (crush != null) crush.isCrushing = false;
+            _dashActive = false;
+        }
+
+        private void UpdateFuse()
+        {
+            if (target == null) return;
+            float dist = Vector2.Distance(transform.position, target.position);
+            if (_fuseTimer < 0f && dist <= fuseRange)
+            {
+                _fuseTimer = fuseTime;
+                if (vfxPlayer != null && fuseVfx != null) vfxPlayer.Play(fuseVfx.name, transform.position);
+                else if (fuseVfx != null) Instantiate(fuseVfx, transform.position, Quaternion.identity);
+                if (sfxPlayer != null && fuseSfx != null) sfxPlayer.Play(fuseSfx.name, transform.position);
+                else if (fuseSfx != null) AudioSource.PlayClipAtPoint(fuseSfx, transform.position);
+            }
+            else if (_fuseTimer > 0f && dist > fuseRange * 1.25f)
+            {
+                // cancel fuse if target escapes
+                _fuseTimer = -1f;
+                if (_sr != null) _sr.color = _baseColor;
+            }
+            if (_fuseTimer >= 0f)
+            {
+                _fuseTimer -= Time.deltaTime;
+                if (_sr != null)
+                {
+                    float t = Mathf.Abs(Mathf.Sin(Time.time * fuseFlashSpeed));
+                    _sr.color = Color.Lerp(_baseColor, fuseFlashColor, t);
+                }
+                if (_fuseTimer <= 0f)
+                {
+                    ExplodeSelf();
+                }
+            }
+        }
+
+        private void ExplodeSelf()
+        {
+            // Simple AoE: damage player if in range
+            if (target != null)
+            {
+                float dist = Vector2.Distance(transform.position, target.position);
+                if (dist <= fuseRange)
+                {
+                    var p = target.GetComponent<Player>();
+                    if (p != null)
+                    {
+                        float dmg = suicideDamage;
+                        var gm = GameManager.Instance;
+                        if (gm != null)
+                        {
+                            dmg *= gm.contactDamageMult;
+                        }
+                        p.Damage(Mathf.RoundToInt(dmg));
+                    }
+                }
+            }
+            _enemy.Kill();
+            if (_sr != null) _sr.color = _baseColor;
+        }
+
+        private void UpdateBuffer()
+        {
+            var hits = Physics2D.OverlapCircleAll(transform.position, buffRadius);
+            foreach (var h in hits)
+            {
+                if (h.attachedRigidbody && h.attachedRigidbody.gameObject == gameObject) continue;
+                var e = h.GetComponentInParent<Enemy>();
+                if (e != null && e != _enemy)
+                {
+                    var buff = e.GetComponent<ZGame.UnityDraft.Systems.BuffStatus>() ?? e.gameObject.AddComponent<ZGame.UnityDraft.Systems.BuffStatus>();
+                    buff.ApplyBuff(buffSpeedMult, 1f, buffDuration, buffMaxStacks);
+                    if (buffVfx != null)
+                    {
+                        var v = Object.Instantiate(buffVfx, e.transform.position, Quaternion.identity);
+                        v.SetActive(true);
+                    }
+                }
+            }
+        }
+
+        private void UpdateBandit()
+        {
+            if (banditRadarTagged && banditRadarLevel > 0)
+            {
+                _banditRingTimer -= Time.deltaTime;
+                if (_banditRingTimer <= 0f)
+                {
+                    _banditRingTimer = Mathf.Max(0.5f, banditRadarRingPeriod);
+                    int idx = Mathf.Clamp(banditRadarLevel - 1, 0, _banditRadarSlowDur.Length - 1);
+                    banditRadarSlowLeft = _banditRadarSlowDur[idx];
+                    if (_banditRadarBaseSpeed > 0f)
+                    {
+                        _enemy.speed = _banditRadarBaseSpeed * _banditRadarSlowMult[idx];
+                    }
+                    if (banditRadarRingVfx != null)
+                    {
+                        Instantiate(banditRadarRingVfx, transform.position, Quaternion.identity);
+                    }
+                    if (_sr != null) _sr.color = Color.Lerp(_baseColor, new Color(1f, 0.84f, 0.3f, 1f), 0.6f);
+                }
+                if (banditRadarSlowLeft > 0f)
+                {
+                    banditRadarSlowLeft -= Time.deltaTime;
+                }
+                else if (_banditRadarBaseSpeed > 0f)
+                {
+                    _enemy.speed = _banditRadarBaseSpeed;
+                    banditRadarTagged = false; // slow expired
+                    if (_sr != null) _sr.color = _baseColor;
+                }
+            }
+
+            if (_fleeing)
+            {
+                _fleeTimer -= Time.deltaTime;
+                if (_rb != null) _rb.velocity = _fleeDir * _enemy.speed * fleeSpeedMult;
+                if (_fleeTimer <= 0f)
+                {
+                    _fleeing = false;
+                    if (_rb != null) _rb.velocity = Vector2.zero;
+                    if (mover != null) mover.enabled = true;
+                }
+                return;
+            }
+
+            // steal nearby coins
+            var hits = Physics2D.OverlapCircleAll(transform.position, stealRadius);
+            foreach (var h in hits)
+            {
+                var coin = h.GetComponentInParent<CoinPickup>();
+                if (coin != null)
+                {
+                    StealFromPlayer();
+                    coin.Award();
+                    _fleeing = true;
+                    _fleeTimer = fleeDuration;
+                    if (mover != null) mover.enabled = false;
+                    if (target != null)
+                    {
+                        Vector2 away = (Vector2)(transform.position - target.position);
+                        _fleeDir = away.sqrMagnitude > 0.01f ? away.normalized : Random.insideUnitCircle.normalized;
+                    }
+                    return;
+                }
+            }
+        }
+
+        private void StealFromPlayer()
+        {
+            if (meta == null) return;
+            int stealAmt = Mathf.Clamp(stealCoins, 1, stealMax);
+            if (stealBanked)
+            {
+                int taken = Mathf.Min(meta.bankedCoins, stealAmt);
+                meta.SpendBankedCoins(taken);
+                _enemy.spoils += taken;
+            }
+            else
+            {
+                int taken = Mathf.Min(meta.runCoins, stealAmt);
+                meta.SpendRunCoins(taken);
+                _enemy.spoils += taken;
+            }
+            stealCoins = Mathf.Min(stealMax, stealCoins + stealEscalation);
+        }
+
+        private void UpdateBossStub()
+        {
+            _phaseTimer -= Time.deltaTime;
+            if (_phaseTimer <= 0f)
+            {
+                _phaseTimer = phaseDuration;
+                _phaseDash = !_phaseDash;
+            }
+            if (_phaseDash)
+            {
+                UpdateDash();
+                if (shooter != null) shooter.enabled = false;
+            }
+            else
+            {
+                if (shooter != null)
+                {
+                    shooter.enabled = true;
+                    shooter.target = target;
+                }
+            }
+        }
+
+        private void UpdateMistweaver()
+        {
+            UpdatePhase();
+            UpdateBossStub(); // reuse phase swap: dash vs ranged volley
+            _mistTeleportTimer -= Time.deltaTime;
+            _mistVolleyTimer -= Time.deltaTime;
+            _mistFogTimer -= Time.deltaTime;
+            if (_mistTeleportTimer <= 0f)
+            {
+                _mistTeleportTimer = mistTeleportInterval;
+                TeleportNearTarget();
+                if (_mistPhase >= 1) SpawnMistClone();
+            }
+            if (_mistVolleyTimer <= 0f)
+            {
+                _mistVolleyTimer = mistVolleyInterval;
+                float arc = _mistPhase >= 2 ? 360f : 180f;
+                RadialVolley(mistVolleyProjectiles, arc);
+            }
+            if (_mistFogTimer <= 0f)
+            {
+                _mistFogTimer = mistFogInterval;
+                SpawnMistFog();
+            }
+            // slow spiral volley
+            _mistSpiralAngle += mistSpiralStepDeg * Time.deltaTime * 10f;
+            if (_mistPhase >= 1) SpiralVolley(mistVolleyProjectiles, mistSpiralStepDeg, ref _mistSpiralAngle);
+        }
+
+        private void UpdateMemoryDevourer()
+        {
+            UpdatePhase();
+            _devourerPulseTimer -= Time.deltaTime;
+            _devourerSummonTimer -= Time.deltaTime;
+            _devourerSpiralTimer -= Time.deltaTime;
+            _devourerHazardTimer -= Time.deltaTime;
+            if (_devourerPulseTimer <= 0f)
+            {
+                _devourerPulseTimer = devourerPulseInterval;
+                PulseAoE(devourerPulseRadius, devourerPulseDamage);
+            }
+            if (_devourerSummonTimer <= 0f)
+            {
+                _devourerSummonTimer = devourerSummonInterval;
+                factory?.SpawnAround(devourerSummonType, transform.position);
+            }
+            if (_devourerSpiralTimer <= 0f)
+            {
+                _devourerSpiralTimer = devourerSpiralInterval;
+                SpiralVolley(devourerSpiralProjectiles, devourerSpiralStepDeg, ref _devourerSpiralAngle);
+            }
+            if (_devourerHazardTimer <= 0f)
+            {
+                _devourerHazardTimer = devourerHazardInterval;
+                DropHazard();
+            }
+        }
+
+        private void UpdateTwinBoss()
+        {
+            UpdateBossStub();
+            _twinVolleyTimer -= Time.deltaTime;
+            if (!_enraged && _twinVolleyTimer <= 0f && twinPartner != null && twinPartner.gameObject.activeSelf && twinPartner._enemy != null && twinPartner._enemy.hp > 0)
+            {
+                _twinVolleyTimer = twinVolleyInterval;
+                // crossfire: both fire offset volleys
+                RadialVolley(twinVolleyCount, 120f);
+                if (twinPartner.shooter != null && twinPartner.target != null)
+                {
+                    twinPartner.RadialVolley(twinVolleyCount, 120f);
+                }
+            }
+            if (_enraged || twinPartner == null) return;
+            if (twinPartner._enemy == null || twinPartner._enemy.hp <= 0 || !twinPartner.gameObject.activeSelf)
+            {
+                _enraged = true;
+                _enemy.speed *= twinEnrageMult;
+                _enemy.attack = Mathf.RoundToInt(_enemy.attack * twinEnrageMult);
+                if (shooter != null) shooter.fireCooldown *= 0.7f;
+            }
+        }
+
+        private void HandleKilled()
+        {
+            if (behavior == EnemyBehaviorType.Splinter && factory != null)
+            {
+                for (int i = 0; i < splinterCount; i++)
+                {
+                    var child = factory.SpawnAround(splinterTypeId, transform.position);
+                    if (child != null)
+                    {
+                        child.speed *= splinterSpeedMult;
+                        child.attack = Mathf.Max(1, Mathf.RoundToInt(child.attack * splinterAttackMult));
+                        child.hp = child.maxHp = Mathf.Max(1, Mathf.RoundToInt(child.maxHp * splinterHpMult));
+                        child.spoils = splinterSpoils;
+                        var beh = child.GetComponent<EnemyBehavior>();
+                        if (beh != null && splinterBehavior != EnemyBehaviorType.None)
+                        {
+                            beh.behavior = splinterBehavior;
+                        }
+                    }
+                }
+            }
+            if (behavior == EnemyBehaviorType.BossTwinMain && twinPartner != null)
+            {
+                twinPartner._enraged = true;
+            }
+            if (behavior == EnemyBehaviorType.Bandit)
+            {
+                if (Random.value < dropChanceOnDeath && coinPrefab != null && meta != null)
+                {
+                    var c = Instantiate(coinPrefab, transform.position, Quaternion.identity);
+                    var cp = c.GetComponent<CoinPickup>();
+                    if (cp != null)
+                    {
+                        cp.amount = stealCoins;
+                        cp.meta = meta;
+                    }
+                }
+            }
+        }
+
+        private void TeleportNearTarget()
+        {
+            if (target == null) return;
+            Vector2 dir = Random.insideUnitCircle.normalized;
+            Vector3 candidate = target.position + (Vector3)(dir * mistTeleportRange);
+            transform.position = candidate;
+        }
+
+        private void RadialVolley(int count, float arcDeg)
+        {
+            if (bulletPool == null || bulletSystem == null) return;
+            float step = arcDeg / count;
+            for (int i = 0; i < count; i++)
+            {
+                float ang = step * i * Mathf.Deg2Rad;
+                Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
+                var b = bulletPool.Get();
+                b.source = "enemy";
+                b.faction = Bullet.Faction.Enemy;
+                float dmg = _enemy != null ? _enemy.attack : 10;
+                float spd = _mistPhase >= 2 ? 520f : 420f;
+                b.Init(transform.position, dir, dmg, range: 10f, speed: spd);
+                bulletSystem.RegisterBullet(b);
+            }
+        }
+
+        private void SpiralVolley(int count, float stepDeg, ref float angleOffset)
+        {
+            if (bulletPool == null || bulletSystem == null) return;
+            float ang = angleOffset;
+            for (int i = 0; i < count; i++)
+            {
+                float a = (ang + i * stepDeg) * Mathf.Deg2Rad;
+                Vector2 dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+                var b = bulletPool.Get();
+                b.source = "enemy";
+                b.faction = Bullet.Faction.Enemy;
+                float dmg = _enemy != null ? _enemy.attack * 0.8f : 8f;
+                b.Init(transform.position, dir, dmg, range: 10f, speed: 360f);
+                bulletSystem.RegisterBullet(b);
+            }
+            angleOffset += stepDeg * 0.5f;
+        }
+
+        private void PulseAoE(float radius, int damage)
+        {
+            var hits = Physics2D.OverlapCircleAll(transform.position, radius, bulletSystem != null ? bulletSystem.playerMask : LayerMask.GetMask("Player"));
+            foreach (var h in hits)
+            {
+                var p = h.GetComponentInParent<Player>();
+                if (p != null) p.Damage(damage);
+            }
+        }
+
+        private void SpawnMistFog()
+        {
+            var paint = FindObjectOfType<PaintSystem>();
+            if (paint != null)
+            {
+                paint.SpawnEnemyPaint(transform.position, mistFogRadius, mistFogDuration, mistFogColor);
+            }
+        }
+
+        private BossAttackStep[] CurrentPattern()
+        {
+            switch (behavior)
+            {
+                case EnemyBehaviorType.BossMistweaver:
+                    if (_mistPhase >= 2 && mistPhase2Pattern != null && mistPhase2Pattern.Length > 0) return mistPhase2Pattern;
+                    if (_mistPhase >= 1 && mistPhase1Pattern != null && mistPhase1Pattern.Length > 0) return mistPhase1Pattern;
+                    if (mistPhase0Pattern != null && mistPhase0Pattern.Length > 0) return mistPhase0Pattern;
+                    return mistPattern;
+                case EnemyBehaviorType.BossMemoryDevourer:
+                    if (_enraged && devourerPhase2Pattern != null && devourerPhase2Pattern.Length > 0) return devourerPhase2Pattern;
+                    if (devourerPhase1Pattern != null && devourerPhase1Pattern.Length > 0) return devourerPhase1Pattern;
+                    if (devourerPhase0Pattern != null && devourerPhase0Pattern.Length > 0) return devourerPhase0Pattern;
+                    return devourerPattern;
+                case EnemyBehaviorType.BossTwinMain:
+                case EnemyBehaviorType.BossTwinPartner:
+                    if (_enraged && twinEnragePattern != null && twinEnragePattern.Length > 0) return twinEnragePattern;
+                    if (twinPhase0Pattern != null && twinPhase0Pattern.Length > 0) return twinPhase0Pattern;
+                    return twinPattern;
+                default:
+                    return null;
+            }
+        }
+
+        private void SpawnMistClone()
+        {
+            if (factory == null || string.IsNullOrEmpty(mistCloneTypeId)) return;
+            factory.SpawnAround(mistCloneTypeId, transform.position);
+        }
+
+        private void DropHazard()
+        {
+            var paint = FindObjectOfType<PaintSystem>();
+            if (paint != null)
+            {
+                paint.SpawnEnemyPaint(transform.position, devourerHazardRadius, devourerHazardDuration, devourerHazardColor);
+            }
+        }
+
+        private IEnumerator DashAttack(float windup, float goTime, float speedMult)
+        {
+            yield return new WaitForSeconds(windup);
+            float original = _enemy.speed;
+            _enemy.speed = original * speedMult;
+            float t = goTime;
+            while (t > 0f)
+            {
+                t -= Time.deltaTime;
+                yield return null;
+            }
+            _enemy.speed = original;
+        }
+
+        private void ConeBurst(int count, float arcDeg, float spd)
+        {
+            if (bulletPool == null || bulletSystem == null || target == null) return;
+            Vector2 baseDir = (target.position - transform.position);
+            if (baseDir.sqrMagnitude < 0.01f) baseDir = Vector2.right;
+            baseDir.Normalize();
+            float start = -arcDeg * 0.5f;
+            for (int i = 0; i < count; i++)
+            {
+                float t = count == 1 ? 0f : i / (float)(count - 1);
+                float ang = start + arcDeg * t;
+                Vector2 d = Quaternion.Euler(0, 0, ang) * baseDir;
+                var b = bulletPool.Get();
+                b.source = "enemy";
+                b.faction = Bullet.Faction.Enemy;
+                float dmg = _enemy != null ? _enemy.attack : 12;
+                b.Init(transform.position, d.normalized, dmg, range: 12f, speed: spd);
+                bulletSystem.RegisterBullet(b);
+            }
+        }
+
+        private IEnumerator RingBurst(int bursts, float delay, float projectiles, float spd)
+        {
+            if (bulletPool == null || bulletSystem == null) yield break;
+            for (int bidx = 0; bidx < bursts; bidx++)
+            {
+                float step = 360f / Mathf.Max(1, projectiles);
+                for (int i = 0; i < projectiles; i++)
+                {
+                    float ang = (step * i + bidx * 8f) * Mathf.Deg2Rad;
+                    Vector2 dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
+                    var b = bulletPool.Get();
+                    b.source = "enemy";
+                    b.faction = Bullet.Faction.Enemy;
+                    float dmg = _enemy != null ? _enemy.attack * 0.8f : 10f;
+                    b.Init(transform.position, dir, dmg, range: 14f, speed: spd);
+                    bulletSystem.RegisterBullet(b);
+                }
+                yield return new WaitForSeconds(delay);
+            }
+        }
+
+        private void AimedBurst(int count, float spreadDeg, float speedOverride)
+        {
+            if (bulletPool == null || bulletSystem == null || target == null) return;
+            Vector2 baseDir = (target.position - transform.position);
+            if (baseDir.sqrMagnitude < 0.01f) baseDir = Vector2.right;
+            baseDir.Normalize();
+            float start = -spreadDeg * 0.5f;
+            for (int i = 0; i < count; i++)
+            {
+                float t = count == 1 ? 0f : i / (float)(count - 1);
+                float ang = start + spreadDeg * t;
+                Vector2 d = Quaternion.Euler(0, 0, ang) * baseDir;
+                var b = bulletPool.Get();
+                b.source = "enemy";
+                b.faction = Bullet.Faction.Enemy;
+                float dmg = _enemy != null ? _enemy.attack : 10;
+                b.Init(transform.position, d.normalized, dmg, range: 12f, speed: speedOverride);
+                bulletSystem.RegisterBullet(b);
+            }
+        }
+
+        private void RingHazard(int count, float radius)
+        {
+            var paint = FindObjectOfType<PaintSystem>();
+            if (paint == null) return;
+            float step = 360f / Mathf.Max(1, count);
+            for (int i = 0; i < count; i++)
+            {
+                float ang = step * i * Mathf.Deg2Rad;
+                Vector3 pos = transform.position + new Vector3(Mathf.Cos(ang), Mathf.Sin(ang), 0f) * radius;
+                paint.SpawnEnemyPaint(pos, devourerHazardRadius, devourerHazardDuration, devourerHazardColor);
+            }
+        }
+
+        private IEnumerator RunPattern()
+        {
+            while (useScriptedPattern)
+            {
+                var seq = CurrentPattern();
+                if (seq == null || seq.Length == 0) yield return null;
+                foreach (var step in seq)
+                {
+                    yield return ExecuteStep(step);
+                }
+            }
+        }
+
+        private void SeedDefaultPatterns()
+        {
+            if (behavior == EnemyBehaviorType.BossMistweaver && (mistPattern == null || mistPattern.Length == 0))
+            {
+                mistPhase0Pattern = new BossAttackStep[]
+                {
+                    new BossAttackStep{ type=BossAttackType.Teleport, duration=0.3f },
+                    new BossAttackStep{ type=BossAttackType.ConeBurst, intParam=7, floatParam=55f, floatParam2=380f, duration=0.45f },
+                    new BossAttackStep{ type=BossAttackType.Spiral, intParam=6, floatParam=15f, duration=0.50f },
+                    new BossAttackStep{ type=BossAttackType.Pause, duration=0.50f }
+                };
+                mistPhase1Pattern = new BossAttackStep[]
+                {
+                    new BossAttackStep{ type=BossAttackType.Teleport, duration=0.25f },
+                    new BossAttackStep{ type=BossAttackType.Fog, duration=0.2f },
+                    new BossAttackStep{ type=BossAttackType.ConeBurst, intParam=7, floatParam=55f, floatParam2=380f, duration=0.45f },
+                    new BossAttackStep{ type=BossAttackType.AimedBurst, intParam=6, floatParam=22f, floatParam2=520f, duration=0.40f },
+                    new BossAttackStep{ type=BossAttackType.Spiral, intParam=8, floatParam=12f, duration=0.55f },
+                    new BossAttackStep{ type=BossAttackType.Pause, duration=0.45f }
+                };
+                mistPhase2Pattern = new BossAttackStep[]
+                {
+                    new BossAttackStep{ type=BossAttackType.Teleport, duration=0.2f },
+                    new BossAttackStep{ type=BossAttackType.Dash, floatParam=0.65f, floatParam2=0.55f, floatParam3=3.25f, duration=0.0f },
+                    new BossAttackStep{ type=BossAttackType.ConeBurst, intParam=7, floatParam=55f, floatParam2=380f, duration=0.45f },
+                    new BossAttackStep{ type=BossAttackType.RingBurst, intParam=2, floatParam=2.0f, floatParam2=20f, floatParam3=420f, duration=0.0f },
+                    new BossAttackStep{ type=BossAttackType.Spiral, intParam=10, floatParam=12f, duration=0.60f },
+                    new BossAttackStep{ type=BossAttackType.Pause, duration=0.40f }
+                };
+            }
+            if (behavior == EnemyBehaviorType.BossMemoryDevourer && (devourerPattern == null || devourerPattern.Length == 0))
+            {
+                devourerPhase0Pattern = new BossAttackStep[]
+                {
+                    new BossAttackStep{ type=BossAttackType.Hazard, duration=0.2f },
+                    new BossAttackStep{ type=BossAttackType.Spiral, intParam=8, floatParam=14f, duration=0.55f },
+                    new BossAttackStep{ type=BossAttackType.Summon, duration=0.45f },
+                    new BossAttackStep{ type=BossAttackType.Pause, duration=0.45f }
+                };
+                devourerPhase1Pattern = new BossAttackStep[]
+                {
+                    new BossAttackStep{ type=BossAttackType.RingHazard, intParam=10, floatParam=3.5f, duration=0.25f },
+                    new BossAttackStep{ type=BossAttackType.Spiral, intParam=10, floatParam=12f, duration=0.6f },
+                    new BossAttackStep{ type=BossAttackType.Summon, duration=0.4f },
+                    new BossAttackStep{ type=BossAttackType.Volley, intParam=12, floatParam=260f, duration=0.6f },
+                    new BossAttackStep{ type=BossAttackType.Pause, duration=0.45f }
+                };
+                devourerPhase2Pattern = new BossAttackStep[]
+                {
+                    new BossAttackStep{ type=BossAttackType.RingHazard, intParam=12, floatParam=4f, duration=0.25f },
+                    new BossAttackStep{ type=BossAttackType.Spiral, intParam=12, floatParam=10f, duration=0.65f },
+                    new BossAttackStep{ type=BossAttackType.Summon, duration=0.35f },
+                    new BossAttackStep{ type=BossAttackType.AimedBurst, intParam=8, floatParam=18f, floatParam2=560f, duration=0.45f },
+                    new BossAttackStep{ type=BossAttackType.Volley, intParam=14, floatParam=280f, duration=0.6f },
+                    new BossAttackStep{ type=BossAttackType.Pause, duration=0.40f }
+                };
+            }
+            if ((behavior == EnemyBehaviorType.BossTwinMain || behavior == EnemyBehaviorType.BossTwinPartner) && (twinPattern == null || twinPattern.Length == 0))
+            {
+                twinPhase0Pattern = new BossAttackStep[]
+                {
+                    new BossAttackStep{ type=BossAttackType.Volley, intParam=6, floatParam=140f, duration=0.45f },
+                    new BossAttackStep{ type=BossAttackType.AimedBurst, intParam=4, floatParam=16f, floatParam2=520f, duration=0.35f },
+                    new BossAttackStep{ type=BossAttackType.Spiral, intParam=4, floatParam=30f, duration=0.45f },
+                    new BossAttackStep{ type=BossAttackType.Pause, duration=0.40f }
+                };
+                twinEnragePattern = new BossAttackStep[]
+                {
+                    new BossAttackStep{ type=BossAttackType.Volley, intParam=8, floatParam=180f, duration=0.45f },
+                    new BossAttackStep{ type=BossAttackType.AimedBurst, intParam=6, floatParam=18f, floatParam2=560f, duration=0.35f },
+                    new BossAttackStep{ type=BossAttackType.Spiral, intParam=6, floatParam=24f, duration=0.45f },
+                    new BossAttackStep{ type=BossAttackType.Pause, duration=0.35f }
+                };
+            }
+        }
+
+        private IEnumerator ExecuteStep(BossAttackStep step)
+        {
+            switch (step.type)
+            {
+                case BossAttackType.Pause:
+                    yield return new WaitForSeconds(step.duration);
+                    break;
+                case BossAttackType.Teleport:
+                    TeleportNearTarget();
+                    yield return new WaitForSeconds(step.duration);
+                    break;
+                case BossAttackType.Volley:
+                    RadialVolley(step.intParam > 0 ? step.intParam : mistVolleyProjectiles, step.floatParam > 0 ? step.floatParam : 180f);
+                    yield return new WaitForSeconds(step.duration);
+                    break;
+                case BossAttackType.Spiral:
+                    SpiralVolley(step.intParam > 0 ? step.intParam : devourerSpiralProjectiles, step.floatParam > 0 ? step.floatParam : devourerSpiralStepDeg, ref _devourerSpiralAngle);
+                    yield return new WaitForSeconds(step.duration);
+                    break;
+                case BossAttackType.Fog:
+                    SpawnMistFog();
+                    yield return new WaitForSeconds(step.duration);
+                    break;
+                case BossAttackType.Hazard:
+                    DropHazard();
+                    yield return new WaitForSeconds(step.duration);
+                    break;
+                case BossAttackType.Summon:
+                    factory?.SpawnAround(devourerSummonType, transform.position);
+                    yield return new WaitForSeconds(step.duration);
+                    break;
+                case BossAttackType.Clone:
+                    SpawnMistClone();
+                    yield return new WaitForSeconds(step.duration);
+                    break;
+                case BossAttackType.AimedBurst:
+                    AimedBurst(step.intParam > 0 ? step.intParam : aimedBurstProjectiles, step.floatParam > 0 ? step.floatParam : aimedBurstSpreadDeg, step.floatParam2 > 0 ? step.floatParam2 : aimedBurstSpeed);
+                    yield return new WaitForSeconds(step.duration);
+                    break;
+                case BossAttackType.RingHazard:
+                    RingHazard(step.intParam > 0 ? step.intParam : ringHazardCount, step.floatParam > 0 ? step.floatParam : ringHazardRadius);
+                    yield return new WaitForSeconds(step.duration);
+                    break;
+                case BossAttackType.Dash:
+                    yield return DashAttack(step.floatParam > 0 ? step.floatParam : dashWindup,
+                                             step.floatParam2 > 0 ? step.floatParam2 : dashTime,
+                                             step.floatParam3 > 0 ? step.floatParam3 : dashSpeedMult);
+                    break;
+                case BossAttackType.ConeBurst:
+                    ConeBurst(step.intParam > 0 ? step.intParam : (int)coneCount,
+                              step.floatParam > 0 ? step.floatParam : coneArcDeg,
+                              step.floatParam2 > 0 ? step.floatParam2 : coneSpeed);
+                    yield return new WaitForSeconds(step.duration);
+                    break;
+                case BossAttackType.RingBurst:
+                    yield return RingBurst(step.intParam > 0 ? step.intParam : ringBursts,
+                                           step.floatParam > 0 ? step.floatParam : ringDelay,
+                                           step.floatParam2 > 0 ? step.floatParam2 : ringProjectiles,
+                                           step.floatParam3 > 0 ? step.floatParam3 : ringSpeed);
+                    break;
+            }
+        }
+    }
+}
