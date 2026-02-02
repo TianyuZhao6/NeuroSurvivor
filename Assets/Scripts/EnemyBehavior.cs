@@ -727,7 +727,7 @@ namespace ZGame.UnityDraft
                 b.faction = Bullet.Faction.Enemy;
                 float dmg = _enemy != null ? _enemy.attack : 10;
                 float spd = _mistPhase >= 2 ? 520f : 420f;
-                b.Init(transform.position, dir, dmg, maxDistance: 10f, speed: spd);
+                b.Init(transform.position, dir, dmg, maxDistance: 10f, spd: spd);
                 bulletSystem.RegisterBullet(b);
             }
         }
@@ -744,7 +744,7 @@ namespace ZGame.UnityDraft
                 b.source = "enemy";
                 b.faction = Bullet.Faction.Enemy;
                 float dmg = _enemy != null ? _enemy.attack * 0.8f : 8f;
-                b.Init(transform.position, dir, dmg, maxDistance: 10f, speed: 360f);
+                b.Init(transform.position, dir, dmg, maxDistance: 10f, spd: 360f);
                 bulletSystem.RegisterBullet(b);
             }
             angleOffset += stepDeg * 0.5f;
@@ -838,7 +838,7 @@ namespace ZGame.UnityDraft
                 b.source = "enemy";
                 b.faction = Bullet.Faction.Enemy;
                 float dmg = _enemy != null ? _enemy.attack : 12;
-                b.Init(transform.position, d.normalized, dmg, maxDistance: 12f, speed: spd);
+                b.Init(transform.position, d.normalized, dmg, maxDistance: 12f, spd: spd);
                 bulletSystem.RegisterBullet(b);
             }
         }
@@ -857,7 +857,7 @@ namespace ZGame.UnityDraft
                     b.source = "enemy";
                     b.faction = Bullet.Faction.Enemy;
                     float dmg = _enemy != null ? _enemy.attack * 0.8f : 10f;
-                    b.Init(transform.position, dir, dmg, maxDistance: 14f, speed: spd);
+                    b.Init(transform.position, dir, dmg, maxDistance: 14f, spd: spd);
                     bulletSystem.RegisterBullet(b);
                 }
                 yield return new WaitForSeconds(delay);
@@ -880,7 +880,7 @@ namespace ZGame.UnityDraft
                 b.source = "enemy";
                 b.faction = Bullet.Faction.Enemy;
                 float dmg = _enemy != null ? _enemy.attack : 10;
-                b.Init(transform.position, d.normalized, dmg, maxDistance: 12f, speed: speedOverride);
+                b.Init(transform.position, d.normalized, dmg, maxDistance: 12f, spd: speedOverride);
                 bulletSystem.RegisterBullet(b);
             }
         }
