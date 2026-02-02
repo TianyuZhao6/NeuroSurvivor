@@ -98,7 +98,7 @@ namespace ZGame.UnityDraft.Systems
                 data.banditAllowed = gameManager.banditAllowed;
                 data.biome = gameManager.biome;
             }
-            var session = FindObjectOfType<LevelSession>();
+            var session = FindFirstObjectByType<LevelSession>();
             if (session != null) data.levelTimer = session.levelTime;
             if (meta != null)
             {
@@ -164,7 +164,7 @@ namespace ZGame.UnityDraft.Systems
                     consumables = meta.consumables.ToArray()
                 };
             }
-            var menu = FindObjectOfType<ZGame.UnityDraft.UI.MenuController>();
+            var menu = FindFirstObjectByType<ZGame.UnityDraft.UI.MenuController>();
             if (menu != null)
             {
                 data.uiState = new UIState
@@ -253,7 +253,7 @@ namespace ZGame.UnityDraft.Systems
                 meta.consumables.Clear();
                 if (data.metaState.consumables != null) meta.consumables.AddRange(data.metaState.consumables);
             }
-            var menu = FindObjectOfType<ZGame.UnityDraft.UI.MenuController>();
+            var menu = FindFirstObjectByType<ZGame.UnityDraft.UI.MenuController>();
             if (menu != null && data.uiState != null)
             {
                 if (data.uiState.pauseOpen && menu.pausePanel != null) menu.pausePanel.SetActive(true);

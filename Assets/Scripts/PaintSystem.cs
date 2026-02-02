@@ -26,6 +26,7 @@ namespace ZGame.UnityDraft
         public float quadSize = 1f;
         public int maxBatch = 512;
         [Header("Defaults")]
+        public Color paintColor = new Color(0.2f, 0.8f, 1f, 0.35f);
         public Color defaultPaintColor = new Color(0.2f, 0.8f, 1f, 0.35f);
         [Header("Wind Hurricane (optional)")]
         public bool spawnHurricane = false;
@@ -34,6 +35,7 @@ namespace ZGame.UnityDraft
 
         public void SpawnEnemyPaint(Vector2 pos, float radius, float lifetime, Color color)
         {
+            if (defaultPaintColor != paintColor) defaultPaintColor = paintColor;
             enemyPaint.Add(new PaintInstance
             {
                 position = pos,

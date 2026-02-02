@@ -24,9 +24,9 @@ namespace ZGame.UnityDraft.Systems
 
         private void Awake()
         {
-            if (menu == null) menu = FindObjectOfType<MenuController>();
-            if (player == null) player = FindObjectOfType<Player>();
-            if (meta == null) meta = FindObjectOfType<MetaProgression>();
+            if (menu == null) menu = FindFirstObjectByType<MenuController>();
+            if (player == null) player = FindFirstObjectByType<Player>();
+            if (meta == null) meta = FindFirstObjectByType<MetaProgression>();
         }
 
         public void OfferLevelUp()

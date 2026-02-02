@@ -54,12 +54,12 @@ namespace ZGame.UnityDraft.Systems
 
         private void OnEnable()
         {
-            if (gridManager == null) gridManager = FindObjectOfType<GridManager>();
+            if (gridManager == null) gridManager = FindFirstObjectByType<GridManager>();
         }
 
         public void Generate(Vector3 center)
         {
-            if (gridManager == null) gridManager = FindObjectOfType<GridManager>();
+            if (gridManager == null) gridManager = FindFirstObjectByType<GridManager>();
             _placed.Clear();
             _obstacleLookup.Clear();
             PlaceBatch(obstaclePrefab, obstacleCount, center, obstaclesRoot, solid:true, destructible:false);

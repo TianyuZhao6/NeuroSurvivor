@@ -35,10 +35,10 @@ namespace ZGame.UnityDraft.Systems
 
         private void Awake()
         {
-            if (combat == null) combat = FindObjectOfType<BulletCombatSystem>();
+            if (combat == null) combat = FindFirstObjectByType<BulletCombatSystem>();
             _player = GetComponent<Player>();
-            _paint = FindObjectOfType<PaintSystem>();
-            if (hud == null) hud = FindObjectOfType<HUDController>();
+            _paint = FindFirstObjectByType<PaintSystem>();
+            if (hud == null) hud = FindFirstObjectByType<HUDController>();
         }
 
         private void Update()

@@ -78,7 +78,7 @@ namespace ZGame.UnityDraft.Systems
                 _aimTimer = aimInterval;
                 if (_target == null)
                 {
-                    var p = FindObjectOfType<Player>();
+                    var p = FindFirstObjectByType<Player>();
                     if (p != null) _target = p.transform;
                     _shooter.target = _target;
                 }

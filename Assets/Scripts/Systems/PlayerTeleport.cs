@@ -34,9 +34,9 @@ namespace ZGame.UnityDraft.Systems
 
         private void Awake()
         {
-            if (grid == null) grid = FindObjectOfType<GridManager>();
-            _paint = FindObjectOfType<PaintSystem>();
-            if (hud == null) hud = FindObjectOfType<HUDController>();
+            if (grid == null) grid = FindFirstObjectByType<GridManager>();
+            _paint = FindFirstObjectByType<PaintSystem>();
+            if (hud == null) hud = FindFirstObjectByType<HUDController>();
         }
 
         private void Update()

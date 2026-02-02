@@ -35,16 +35,16 @@ namespace ZGame.UnityDraft.Systems
         private void Awake()
         {
             if (gameManager == null) gameManager = GetComponent<GameManager>();
-            if (waveSpawner == null) waveSpawner = FindObjectOfType<WaveSpawner>();
-            if (menu == null) menu = FindObjectOfType<MenuController>();
-            if (shopUI == null) shopUI = FindObjectOfType<ShopUI>();
-            if (levelUpPicker == null) levelUpPicker = FindObjectOfType<LevelUpPicker>();
-            if (hud == null) hud = FindObjectOfType<HUDController>();
-            if (meta == null) meta = FindObjectOfType<MetaProgression>();
-            if (player == null) player = FindObjectOfType<Player>();
+            if (waveSpawner == null) waveSpawner = FindFirstObjectByType<WaveSpawner>();
+            if (menu == null) menu = FindFirstObjectByType<MenuController>();
+            if (shopUI == null) shopUI = FindFirstObjectByType<ShopUI>();
+            if (levelUpPicker == null) levelUpPicker = FindFirstObjectByType<LevelUpPicker>();
+            if (hud == null) hud = FindFirstObjectByType<HUDController>();
+            if (meta == null) meta = FindFirstObjectByType<MetaProgression>();
+            if (player == null) player = FindFirstObjectByType<Player>();
             if (waveSpawner != null && waveSpawner.enemyFactory == null)
             {
-                waveSpawner.enemyFactory = FindObjectOfType<EnemyFactory>();
+                waveSpawner.enemyFactory = FindFirstObjectByType<EnemyFactory>();
             }
 
             if (gameManager != null)

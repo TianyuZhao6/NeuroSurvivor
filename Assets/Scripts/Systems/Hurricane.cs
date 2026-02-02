@@ -92,7 +92,7 @@ namespace ZGame.UnityDraft.Systems
                 var enemy = h.GetComponent<Enemy>();
                 var player = h.GetComponent<Player>();
 
-                Vector2 toCenter = (Vector2)(transform.position - rb.position);
+                Vector2 toCenter = (Vector2)transform.position - rb.position;
                 float dist = toCenter.magnitude + 0.001f;
                 Vector2 dir = toCenter / dist;
                 float grow = Mathf.Min(1f, _radius / Mathf.Max(1f, maxRadius));

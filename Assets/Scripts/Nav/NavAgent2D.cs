@@ -32,7 +32,7 @@ namespace ZGame.UnityDraft.Nav
         {
             if (target == null)
             {
-                var p = FindObjectOfType<Player>();
+                var p = FindFirstObjectByType<Player>();
                 if (p != null) target = p.transform;
             }
         }

@@ -138,7 +138,10 @@ namespace ZGame.UnityDraft.Combat
                     break;
             }
             float radius = b.hitRadius > 0f ? b.hitRadius : defaultHitRadius;
-            int count = Physics2D.OverlapCircleNonAlloc(b.transform.position, radius, _hitBuffer, mask);
+            var filter = new ContactFilter2D();
+            filter.SetLayerMask(mask);
+            filter.useTriggers = true;
+            int count = Physics2D.OverlapCircle(b.transform.position, radius, filter, _hitBuffer);
             if (count <= 0) return;
             for (int i = 0; i < count; i++)
             {
@@ -236,7 +239,10 @@ namespace ZGame.UnityDraft.Combat
         {
             // Simple: find nearest enemy within a cone; here just pick any within radius.
             float radius = (b.hitRadius > 0f ? b.hitRadius : defaultHitRadius) * 8f;
-            int count = Physics2D.OverlapCircleNonAlloc(hitPos, radius, _hitBuffer, enemyMask);
+            var filter = new ContactFilter2D();
+            filter.SetLayerMask(enemyMask);
+            filter.useTriggers = true;
+            int count = Physics2D.OverlapCircle(hitPos, radius, filter, _hitBuffer);
             float bestD2 = float.MaxValue;
             Vector3 bestPos = Vector3.zero;
             for (int i = 0; i < count; i++)
@@ -301,7 +307,10 @@ namespace ZGame.UnityDraft.Combat
         {
             // Apply AoE damage to nearby enemies using defaultHitRadius as baseline for enemies
             float r = explosiveRadius > 0 ? explosiveRadius : defaultHitRadius * 3f;
-            int count = Physics2D.OverlapCircleNonAlloc(pos, r, _hitBuffer, enemyMask);
+            var filter = new ContactFilter2D();
+            filter.SetLayerMask(enemyMask);
+            filter.useTriggers = true;
+            int count = Physics2D.OverlapCircle(pos, r, filter, _hitBuffer);
             for (int i = 0; i < count; i++)
             {
                 var col = _hitBuffer[i];

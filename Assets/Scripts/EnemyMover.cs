@@ -60,7 +60,7 @@ namespace ZGame.UnityDraft
             _enemy = GetComponent<Enemy>();
             _rb = GetComponent<Rigidbody2D>();
             _navAgent2D = GetComponent<Nav.NavAgent2D>();
-            navMesh2D = FindObjectOfType<Nav.NavMesh2DStub>();
+            navMesh2D = FindFirstObjectByType<Nav.NavMesh2DStub>();
 #if UNITY_AI_NAVIGATION
             navAgent3D = GetComponent<NavMeshAgent>();
 #endif
@@ -81,7 +81,7 @@ namespace ZGame.UnityDraft
             if (!_enemy || !_enemy.gameObject.activeSelf) return;
             if (useNavMeshAgent && _navAgent2D != null && _navAgent2D.enabled)
             {
-                if (_rb) _rb.velocity = Vector2.zero;
+                if (_rb) _rb.linearVelocity = Vector2.zero;
                 return;
             }
 #if UNITY_AI_NAVIGATION
@@ -212,7 +212,7 @@ namespace ZGame.UnityDraft
             Vector2 desired = vel.normalized * spd;
             if (_rb)
             {
-                _rb.velocity = desired;
+                _rb.linearVelocity = desired;
                 windModifier?.ApplyIfBiome(_enemy?.balance?.name, _rb);
             }
             else

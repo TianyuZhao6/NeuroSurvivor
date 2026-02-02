@@ -225,22 +225,22 @@ namespace ZGame.UnityDraft
             if (shooter == null) shooter = GetComponent<EnemyShooter>();
             if (shielderAura == null) shielderAura = GetComponent<ShielderAura>();
             if (crush == null) crush = GetComponent<ObstacleCrushOnContact>();
-            if (factory == null) factory = FindObjectOfType<EnemyFactory>();
-            if (bulletSystem == null) bulletSystem = FindObjectOfType<BulletCombatSystem>();
-            if (bulletPool == null) bulletPool = FindObjectOfType<BulletPool>();
-            if (vfxPlayer == null) vfxPlayer = FindObjectOfType<ZGame.UnityDraft.VFX.VfxPlayer>();
-            if (sfxPlayer == null) sfxPlayer = FindObjectOfType<ZGame.UnityDraft.VFX.SfxPlayer>();
+            if (factory == null) factory = FindFirstObjectByType<EnemyFactory>();
+            if (bulletSystem == null) bulletSystem = FindFirstObjectByType<BulletCombatSystem>();
+            if (bulletPool == null) bulletPool = FindFirstObjectByType<BulletPool>();
+            if (vfxPlayer == null) vfxPlayer = FindFirstObjectByType<ZGame.UnityDraft.VFX.VfxPlayer>();
+            if (sfxPlayer == null) sfxPlayer = FindFirstObjectByType<ZGame.UnityDraft.VFX.SfxPlayer>();
             _sr = GetComponent<SpriteRenderer>();
             if (_sr != null) _baseColor = _sr.color;
             if (target == null)
             {
-                var p = FindObjectOfType<Player>();
+                var p = FindFirstObjectByType<Player>();
                 if (p != null) target = p.transform;
             }
             if (_enemy != null) _enemy.OnKilled += HandleKilled;
             _phaseTimer = phaseDuration;
-            if (meta == null) meta = FindObjectOfType<MetaProgression>();
-            if (hud == null) hud = FindObjectOfType<HUDController>();
+            if (meta == null) meta = FindFirstObjectByType<MetaProgression>();
+            if (hud == null) hud = FindFirstObjectByType<HUDController>();
             if (behavior == EnemyBehaviorType.Bandit && meta != null)
             {
                 int lvl = Mathf.Clamp(meta.banditRadarLevel, 0, _banditRadarSlowMult.Length);
@@ -365,7 +365,7 @@ namespace ZGame.UnityDraft
             if (dir.sqrMagnitude < 0.01f) dir = Random.insideUnitCircle.normalized;
             dir.Normalize();
             if (mover != null) mover.enabled = false;
-            if (_rb != null) _rb.velocity = Vector2.zero;
+            if (_rb != null) _rb.linearVelocity = Vector2.zero;
             // Telegraph pause
             yield return new WaitForSeconds(dashTelegraph);
             float original = _enemy.speed;
@@ -380,18 +380,18 @@ namespace ZGame.UnityDraft
                     dir = ((Vector2)target.position - (Vector2)transform.position);
                     if (dir.sqrMagnitude > 0.001f) dir.Normalize();
                 }
-                if (_rb != null) _rb.velocity = dir * _enemy.speed;
+                if (_rb != null) _rb.linearVelocity = dir * _enemy.speed;
                 yield return null;
             }
             _enemy.speed = original;
             // wind-down slow then brief stun
-            if (_rb != null) _rb.velocity = Vector2.zero;
+            if (_rb != null) _rb.linearVelocity = Vector2.zero;
             _enemy.speed = original * dashWinddownSlowMult;
             yield return new WaitForSeconds(dashWinddownTime);
             _enemy.speed = 0f;
             yield return new WaitForSeconds(dashStunTime);
             _enemy.speed = original;
-            if (_rb != null) _rb.velocity = Vector2.zero;
+            if (_rb != null) _rb.linearVelocity = Vector2.zero;
             if (mover != null) mover.enabled = true;
             if (crush != null) crush.isCrushing = false;
             _dashActive = false;
@@ -510,11 +510,11 @@ namespace ZGame.UnityDraft
             if (_fleeing)
             {
                 _fleeTimer -= Time.deltaTime;
-                if (_rb != null) _rb.velocity = _fleeDir * _enemy.speed * fleeSpeedMult;
+                if (_rb != null) _rb.linearVelocity = _fleeDir * _enemy.speed * fleeSpeedMult;
                 if (_fleeTimer <= 0f)
                 {
                     _fleeing = false;
-                    if (_rb != null) _rb.velocity = Vector2.zero;
+                    if (_rb != null) _rb.linearVelocity = Vector2.zero;
                     if (mover != null) mover.enabled = true;
                 }
                 return;
@@ -727,7 +727,7 @@ namespace ZGame.UnityDraft
                 b.faction = Bullet.Faction.Enemy;
                 float dmg = _enemy != null ? _enemy.attack : 10;
                 float spd = _mistPhase >= 2 ? 520f : 420f;
-                b.Init(transform.position, dir, dmg, range: 10f, speed: spd);
+                b.Init(transform.position, dir, dmg, maxDistance: 10f, speed: spd);
                 bulletSystem.RegisterBullet(b);
             }
         }
@@ -744,7 +744,7 @@ namespace ZGame.UnityDraft
                 b.source = "enemy";
                 b.faction = Bullet.Faction.Enemy;
                 float dmg = _enemy != null ? _enemy.attack * 0.8f : 8f;
-                b.Init(transform.position, dir, dmg, range: 10f, speed: 360f);
+                b.Init(transform.position, dir, dmg, maxDistance: 10f, speed: 360f);
                 bulletSystem.RegisterBullet(b);
             }
             angleOffset += stepDeg * 0.5f;
@@ -762,7 +762,7 @@ namespace ZGame.UnityDraft
 
         private void SpawnMistFog()
         {
-            var paint = FindObjectOfType<PaintSystem>();
+            var paint = FindFirstObjectByType<PaintSystem>();
             if (paint != null)
             {
                 paint.SpawnEnemyPaint(transform.position, mistFogRadius, mistFogDuration, mistFogColor);
@@ -801,7 +801,7 @@ namespace ZGame.UnityDraft
 
         private void DropHazard()
         {
-            var paint = FindObjectOfType<PaintSystem>();
+            var paint = FindFirstObjectByType<PaintSystem>();
             if (paint != null)
             {
                 paint.SpawnEnemyPaint(transform.position, devourerHazardRadius, devourerHazardDuration, devourerHazardColor);
@@ -838,7 +838,7 @@ namespace ZGame.UnityDraft
                 b.source = "enemy";
                 b.faction = Bullet.Faction.Enemy;
                 float dmg = _enemy != null ? _enemy.attack : 12;
-                b.Init(transform.position, d.normalized, dmg, range: 12f, speed: spd);
+                b.Init(transform.position, d.normalized, dmg, maxDistance: 12f, speed: spd);
                 bulletSystem.RegisterBullet(b);
             }
         }
@@ -857,7 +857,7 @@ namespace ZGame.UnityDraft
                     b.source = "enemy";
                     b.faction = Bullet.Faction.Enemy;
                     float dmg = _enemy != null ? _enemy.attack * 0.8f : 10f;
-                    b.Init(transform.position, dir, dmg, range: 14f, speed: spd);
+                    b.Init(transform.position, dir, dmg, maxDistance: 14f, speed: spd);
                     bulletSystem.RegisterBullet(b);
                 }
                 yield return new WaitForSeconds(delay);
@@ -880,14 +880,14 @@ namespace ZGame.UnityDraft
                 b.source = "enemy";
                 b.faction = Bullet.Faction.Enemy;
                 float dmg = _enemy != null ? _enemy.attack : 10;
-                b.Init(transform.position, d.normalized, dmg, range: 12f, speed: speedOverride);
+                b.Init(transform.position, d.normalized, dmg, maxDistance: 12f, speed: speedOverride);
                 bulletSystem.RegisterBullet(b);
             }
         }
 
         private void RingHazard(int count, float radius)
         {
-            var paint = FindObjectOfType<PaintSystem>();
+            var paint = FindFirstObjectByType<PaintSystem>();
             if (paint == null) return;
             float step = 360f / Mathf.Max(1, count);
             for (int i = 0; i < count; i++)

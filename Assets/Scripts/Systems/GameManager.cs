@@ -43,9 +43,9 @@ namespace ZGame.UnityDraft.Systems
             Instance = this;
             if (levelFlow == null) levelFlow = GetComponent<LevelFlow>();
             if (meta == null) meta = GetComponent<MetaProgression>();
-            if (hud == null) hud = FindObjectOfType<HUDController>();
-            if (menu == null) menu = FindObjectOfType<UI.MenuController>();
-            if (session == null) session = FindObjectOfType<LevelSession>();
+            if (hud == null) hud = FindFirstObjectByType<HUDController>();
+            if (menu == null) menu = FindFirstObjectByType<UI.MenuController>();
+            if (session == null) session = FindFirstObjectByType<LevelSession>();
         }
 
         public void StartLevel(int levelIdx)
@@ -81,13 +81,13 @@ namespace ZGame.UnityDraft.Systems
         private void ApplyBiomeSideEffects()
         {
             // Wind biome: enable WindBiomeModifier components
-            var windMods = FindObjectsOfType<WindBiomeModifier>(true);
+            var windMods = FindObjectsByType<WindBiomeModifier>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var w in windMods)
             {
                 w.enabled = currentBiome != null && currentBiome.wind && currentBiome.name == w.biomeName;
             }
             // Coin multiplier for spoils
-            var bcs = FindObjectOfType<Combat.BulletCombatSystem>();
+            var bcs = FindFirstObjectByType<Combat.BulletCombatSystem>();
             if (bcs != null && currentBiome != null)
             {
                 bcs.coinMult = currentBiome.coinMult;
@@ -98,9 +98,10 @@ namespace ZGame.UnityDraft.Systems
                 }
             }
             // Paint color override
-            var paint = FindObjectOfType<PaintSystem>();
+            var paint = FindFirstObjectByType<PaintSystem>();
             if (paint != null && currentBiome != null)
             {
+                paint.paintColor = currentBiome.paintColor;
                 paint.defaultPaintColor = currentBiome.paintColor;
                 // Domain of Wind hazard placeholder: spawn a breeze patch once
                 if (currentBiome.wind)
@@ -114,7 +115,7 @@ namespace ZGame.UnityDraft.Systems
                 SpawnHurricanes();
             }
             // Player buffs per biome
-            var player = FindObjectOfType<Player>();
+            var player = FindFirstObjectByType<Player>();
             if (player != null && currentBiome != null)
             {
                 player.xpGainMult = 1f;
@@ -158,7 +159,7 @@ namespace ZGame.UnityDraft.Systems
                     var fc = _fogInstance.GetComponent<Systems.FogController>();
                     if (fc != null)
                     {
-                        fc.target = FindObjectOfType<Player>()?.transform;
+                        fc.target = FindFirstObjectByType<Player>()?.transform;
                         fc.cam = Camera.main;
                     }
                 }
@@ -177,12 +178,12 @@ namespace ZGame.UnityDraft.Systems
 
         private void SpawnHurricanes()
         {
-            var grid = FindObjectOfType<GridManager>();
+            var grid = FindFirstObjectByType<GridManager>();
             float cs = balance != null ? balance.cellSize : 52f;
             float mapW = (balance != null ? balance.gridSize : 32) * cs;
             float mapH = (balance != null ? balance.gridSize : 32) * cs;
             float infoH = balance != null ? balance.infoBarHeight : 40f;
-            var player = FindObjectOfType<Player>();
+            var player = FindFirstObjectByType<Player>();
             Vector2 pPos = player != null ? (Vector2)player.transform.position : Vector2.zero;
             float minDist = cs * 6f;
             float margin = (balance != null ? balance.cellSize * 6f : 300f) * 1.2f;
@@ -191,8 +192,8 @@ namespace ZGame.UnityDraft.Systems
                 Vector3 pos = new Vector3(mapW * 0.5f, infoH + mapH * 0.5f, 0f);
                 for (int tries = 0; tries < 40; tries++)
                 {
-                    float x = Random.Range(margin, mapW - margin);
-                    float y = infoH + Random.Range(margin, mapH - margin);
+                    float x = UnityEngine.Random.Range(margin, mapW - margin);
+                    float y = infoH + UnityEngine.Random.Range(margin, mapH - margin);
                     Vector2 cand = new Vector2(x, y);
                     if ((cand - pPos).sqrMagnitude >= minDist * minDist)
                     {

@@ -33,6 +33,10 @@ namespace ZGame.UnityDraft.Combat
         public float leadAdjust = 0.6f; // 0..1 bias toward predicted target
         [Tooltip("Allow friendly fire on shrapnel/explosive? If false, only player bullets trigger those effects.")]
         public bool allowFriendlyExplosive = false;
+        [Header("Friendly Fire Routing")]
+        public bool allowEnemyVsEnemy = false;
+        public bool allowEnemyExplosive = false;
+        public bool allowEnemyShrapnel = false;
 
         private float _cd;
 
@@ -52,7 +56,7 @@ namespace ZGame.UnityDraft.Combat
             }
             if (target == null)
             {
-                var p = FindObjectOfType<Player>();
+                var p = FindFirstObjectByType<Player>();
                 if (p != null) target = p.transform;
             }
         }
@@ -71,7 +75,7 @@ namespace ZGame.UnityDraft.Combat
                 {
                     // simple lead: assume target keeps current velocity, adjust a bit
                     float t = range / Mathf.Max(1f, speed);
-                    Vector2 predicted = (Vector2)target.position + rb.velocity * t * leadAdjust;
+                    Vector2 predicted = (Vector2)target.position + rb.linearVelocity * t * leadAdjust;
                     dir = predicted - (Vector2)transform.position;
                 }
             }
@@ -83,6 +87,12 @@ namespace ZGame.UnityDraft.Combat
 
         private void Fire(Vector2 dir)
         {
+            if (bulletSystem != null)
+            {
+                bulletSystem.allowEnemyVsEnemy = allowEnemyVsEnemy;
+                bulletSystem.allowEnemyExplosive = allowEnemyExplosive || allowFriendlyExplosive;
+                bulletSystem.allowEnemyShrapnel = allowEnemyShrapnel || allowFriendlyExplosive;
+            }
             switch (pattern)
             {
                 case FirePattern.Spread:

@@ -63,6 +63,12 @@ namespace ZGame.UnityDraft.Nav
         {
             Debug.LogWarning("NavMeshComponents package not present. Install Unity.AI.Navigation to enable NavMesh2D.");
         }
+
+        // Keep API surface consistent when UNITY_AI_NAVIGATION is absent.
+        public void MarkDirty()
+        {
+            // No-op without NavMeshComponents installed.
+        }
 #endif
     }
 }

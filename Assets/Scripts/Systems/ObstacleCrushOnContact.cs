@@ -31,7 +31,7 @@ namespace ZGame.UnityDraft.Systems
         private void TryCrush(Collider2D col)
         {
             if (!isCrushing) return;
-            if (_rb != null && _rb.velocity.magnitude < minImpactSpeed) return;
+            if (_rb != null && _rb.linearVelocity.magnitude < minImpactSpeed) return;
             var d = col.GetComponentInParent<DestructibleObstacle>();
             if (d != null) d.Crush();
         }

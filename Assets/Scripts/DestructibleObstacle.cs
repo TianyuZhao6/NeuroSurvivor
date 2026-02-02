@@ -40,7 +40,7 @@ namespace ZGame.UnityDraft
 
         public void Remove()
         {
-            if (gridManager == null) gridManager = FindObjectOfType<GridManager>();
+            if (gridManager == null) gridManager = FindFirstObjectByType<GridManager>();
             if (gridManager != null) gridManager.RemoveObstacle(transform.position);
             if (vfxPlayer != null && destroyVfx != null)
             {

@@ -46,7 +46,7 @@ namespace ZGame.UnityDraft.Systems
             _player = GetComponent<Player>();
             if (paintSystem == null)
             {
-                paintSystem = _defaultPaint ?? FindObjectOfType<PaintSystem>();
+                paintSystem = _defaultPaint ?? FindFirstObjectByType<PaintSystem>();
                 _defaultPaint = paintSystem;
             }
         }

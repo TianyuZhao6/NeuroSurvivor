@@ -55,7 +55,7 @@ namespace ZGame.UnityDraft.Systems
 
         private void ApplyBiomeOnSpawn(Enemy e)
         {
-            if (gameManager == null) gameManager = FindObjectOfType<GameManager>();
+            if (gameManager == null) gameManager = FindFirstObjectByType<GameManager>();
             var biome = gameManager != null ? gameManager.currentBiome : null;
             if (biome == null || e == null) return;
             if (biome.name == "Bastion of Stone")

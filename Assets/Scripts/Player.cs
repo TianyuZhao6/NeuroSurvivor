@@ -5,7 +5,7 @@ namespace ZGame.UnityDraft
     /// <summary>
     /// Minimal player runtime state aligned with ZGame.py fields.
     /// </summary>
-    public class Player : MonoBehaviour
+    public class Player : MonoBehaviour, ICritSource
     {
         public GameBalanceConfig balance;
 
@@ -30,6 +30,9 @@ namespace ZGame.UnityDraft
         public float radiusPx;
         public int xp;
         public int level = 1;
+
+        public float CritChance => critChance;
+        public float CritMult => critMult;
 
         private void Awake()
         {

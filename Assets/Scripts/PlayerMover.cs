@@ -52,7 +52,7 @@ namespace ZGame.UnityDraft
         private void FixedUpdate()
         {
             Vector2 input = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
-            Vector2 vel = _rb ? _rb.velocity : Vector2.zero;
+            Vector2 vel = _rb ? _rb.linearVelocity : Vector2.zero;
             float targetSpeed = _player != null ? _player.speed : 4.5f;
 
             if (input.sqrMagnitude > 0.01f)
@@ -74,7 +74,7 @@ namespace ZGame.UnityDraft
 
             if (_rb)
             {
-                _rb.velocity = vel;
+                _rb.linearVelocity = vel;
             }
             else
             {
